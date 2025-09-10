@@ -1,0 +1,13 @@
+---
+title: "Plant Growth"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+# INTRODUCTION
+This analysis uses the plant growth dataset.
+```{r}
+head(PlantGrowth) 
+str(PlantGrowth)
+```
+
