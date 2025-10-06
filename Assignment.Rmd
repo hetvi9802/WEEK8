@@ -13,6 +13,7 @@ download.file(url_counts, destfile = "gene_expression.tsv", quiet = TRUE)
 
 ```{r}
 #1 Read table; make gene IDs the row names 
+# I imported the RNA-seq count data using read.table() with the separator set to tab (sep = "\t"). The first column contained the gene IDs, so I assigned these as row names using row.names = ge[,1] and removed the redundant first column, leaving only the expression counts for the three samples.
 ge <- read.table("gene_expression.tsv", header = TRUE, sep = "\t", stringsAsFactors = FALSE)
 row.names(ge) <- ge[,1]
 ge <- ge[ , -1]
@@ -22,30 +23,41 @@ ge <- ge[ , -1]
 # Show first six genes
 head(ge, 6)
 ```
+Answer: The first six genes (rows = gene IDs, columns = samples) show the raw RNA-seq counts across the three samples.
 
 ```{r}
 #2 Add mean across samples
+# I calculated the row-wise mean across the three samples using ge$mean_expr <- rowMeans(ge). This created a new column representing the average expression for each gene.
 ge$mean_expr <- rowMeans(ge)
 head(ge, 6)
 ```
+Answer: The dataset now includes a mean_expr column showing mean expression values for each gene. The first six genes display this additional column. 
 
 ```{r}
 #3 List of 10 genes with highest mean
+# I sorted the dataset by mean_expr in descending order using ge[order(-ge$mean_expr), ] and extracted the top 10 rows.
 head(ge[order(-ge$mean_expr), , drop=FALSE], 10)
 ```
+Answer: A table showing the top 10 most highly expressed genes and their mean expression values.
 
 ```{r}
 #4 Number of genes with mean < 10
+# I used sum(ge$mean_expr < 10) to count how many genes had a mean expression below 10.
 sum(ge$mean_expr < 10)
 ```
+Answer: The total number of genes with mean expression < 10 represents the lowly expressed genes in the dataset.
+
 
 ```{r}
 #5 Histogram
+# I plotted the distribution using hist(ge$mean_expr), where the x-axis represents mean expression and the y-axis shows gene frequency.
 hist(log10(ge$mean_expr + 1), main = "Distribution of Mean Gene Expression (log 10)", xlab = "Mean Expression", ylab = "Frequency", col = "purple", border = "white", breaks = 30)
 ```
+Answer: The histogram visualizes the spread of mean expression levels across all genes, highlighting whether most genes are expressed at low, moderate, or high levels.
 
 ```{r}
 #6 Download file
+# I imported the tree growth dataset using read.csv() and viewed the column names using names(gd).
 url_growth <- "https://raw.githubusercontent.com/ghazkha/Assessment4/main/growth_data.csv"
 download.file(url_growth, destfile = "growth_data.csv", quiet = TRUE)
 gd <- read.csv("growth_data.csv", stringsAsFactors = FALSE)   
@@ -58,25 +70,39 @@ names(gd)
 
 ```{r}
 #7 mean & sd at start (2005) and end (2020) by site
+# I calculated the mean and SD for 2005 and 2020 circumference values by site using tapply().
 with(gd, tapply(Circumf_2005_cm, Site, function(x) c(mean=mean(x), sd=sd(x))))
 with(gd, tapply(Circumf_2020_cm, Site, function(x) c(mean=mean(x), sd=sd(x))))
 ```
+Answer: The mean and standard deviation for the northeast in starting is 5.29220000 and 0.9140267 respectively and at the end is 54.22800 and 25.22795 respectively. And the mean and standard deviation for southwest in starting is 4.862000 and 1.147471 repectively and in end is 45.59600 and 17.87345 respectively.
 
 ```{r}
 #8 Boxplots of start vs end circumference
+# I used two separate boxplot() functions to visualize circumference distributions for 2005 and 2020 by site.
 boxplot(Circumf_2005_cm ~ Site, data=gd,
         ylab="Tree circumference (cm)", main="Start (2005) by site")
 boxplot(Circumf_2020_cm ~ Site, data=gd,
         ylab="Tree circumference (cm)", main="End (2020) by site")
 ```
+Answer: 2005: shows initial circumference differences between sites.
+2020: shows how circumferences changed after 15 years.
 
 ```{r}
 #9 Mean growth over the last 10 years (2010–2020) at each site
+# I calculated 10-year growth as:
+gd$growth_10y <- gd$Circumf_2020_cm - gd$Circumf_2010_cm
+# Then computed mean growth per site using tapply(gd$growth_10y, gd$Site, mean).
 gd$growth_10y <- gd$Circumf_2020_cm - gd$Circumf_2010_cm
 with(gd, tapply(growth_10y, Site, mean))
 ```
+Answer: Mean growth over 10 years for northeast is 42.94 and for southwest is 35.49
+
 ```{r}
 #10 t-test comparing 10-year growth across sites
+# I conducted a two-sample t-test using:
 t.test(growth_10y ~ Site, data=gd)
 ```
-
+Answer: The test output includes a t-statistic and p-value:
+p < 0.05: significant difference in 10-year growth between control and treatment sites.
+p ≥ 0.05: no statistically significant difference.
+This test determines whether the treatment affected tree growth over the last 10 years.
