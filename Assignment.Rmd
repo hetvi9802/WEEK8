@@ -1,0 +1,82 @@
+---
+title: "Assignment"
+author: "hetvi9802"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+# Download from the assignment file
+url_counts <- "https://raw.githubusercontent.com/ghazkha/Assessment4/main/gene_expression.tsv"
+download.file(url_counts, destfile = "gene_expression.tsv", quiet = TRUE)
+```
+
+```{r}
+#1 Read table; make gene IDs the row names 
+ge <- read.table("gene_expression.tsv", header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+row.names(ge) <- ge[,1]
+ge <- ge[ , -1]
+```
+
+```{r}
+# Show first six genes
+head(ge, 6)
+```
+
+```{r}
+#2 Add mean across samples
+ge$mean_expr <- rowMeans(ge)
+head(ge, 6)
+```
+
+```{r}
+#3 List of 10 genes with highest mean
+head(ge[order(-ge$mean_expr), , drop=FALSE], 10)
+```
+
+```{r}
+#4 Number of genes with mean < 10
+sum(ge$mean_expr < 10)
+```
+
+```{r}
+#5 Histogram
+hist(log10(ge$mean_expr + 1), main = "Distribution of Mean Gene Expression (log 10)", xlab = "Mean Expression", ylab = "Frequency", col = "purple", border = "white", breaks = 30)
+```
+
+```{r}
+#6 Download file
+url_growth <- "https://raw.githubusercontent.com/ghazkha/Assessment4/main/growth_data.csv"
+download.file(url_growth, destfile = "growth_data.csv", quiet = TRUE)
+gd <- read.csv("growth_data.csv", stringsAsFactors = FALSE)   
+```
+
+```{r}
+# Inspect column names
+names(gd)
+```
+
+```{r}
+#7 mean & sd at start (2005) and end (2020) by site
+with(gd, tapply(Circumf_2005_cm, Site, function(x) c(mean=mean(x), sd=sd(x))))
+with(gd, tapply(Circumf_2020_cm, Site, function(x) c(mean=mean(x), sd=sd(x))))
+```
+
+```{r}
+#8 Boxplots of start vs end circumference
+boxplot(Circumf_2005_cm ~ Site, data=gd,
+        ylab="Tree circumference (cm)", main="Start (2005) by site")
+boxplot(Circumf_2020_cm ~ Site, data=gd,
+        ylab="Tree circumference (cm)", main="End (2020) by site")
+```
+
+```{r}
+#9 Mean growth over the last 10 years (2010–2020) at each site
+gd$growth_10y <- gd$Circumf_2020_cm - gd$Circumf_2010_cm
+with(gd, tapply(growth_10y, Site, mean))
+```
+```{r}
+#10 t-test comparing 10-year growth across sites
+t.test(growth_10y ~ Site, data=gd)
+```
+
