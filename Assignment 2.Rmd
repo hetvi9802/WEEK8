@@ -1,0 +1,173 @@
+---
+title: "Hetvi"
+author: "hetvi9802"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages({
+  library(seqinr)   # read.fasta, translate, s2c, count helpers
+  library(R.utils)  # gunzip
+  library(dplyr)
+  library(ggplot2)
+})
+```
+
+```{r}
+#1 Download coding DNA sequences (CDS)
+URL_ecoli <- "https://ftp.ensemblgenomes.ebi.ac.uk/pub/bacteria/release-62/fasta/bacteria_0_collection/escherichia_coli_str_k_12_substr_mg1655_gca_000005845/cds/Escherichia_coli_str_k_12_substr_mg1655_gca_000005845.ASM584v2.cds.all.fa.gz"
+
+URL_bifido <- "https://ftp.ensemblgenomes.ebi.ac.uk/pub/bacteria/release-62/fasta/bacteria_63_collection/bifidobacteriaceae_bacterium_wp012_gca_003585625/cds/Bifidobacteriaceae_bacterium_wp012_gca_003585625.ASM358562v1.cds.all.fa.gz"
+
+# Download and unzip
+if (!file.exists("ecoli_cds.fa")) {
+  download.file(URL_ecoli, destfile = "ecoli_cds.fa.gz", quiet = TRUE, mode = "wb")
+  R.utils::gunzip("ecoli_cds.fa.gz", overwrite = TRUE)
+}
+if (!file.exists("bifido_cds.fa")) {
+  download.file(URL_bifido, destfile = "bifido_cds.fa.gz", quiet = TRUE, mode = "wb")
+  R.utils::gunzip("bifido_cds.fa.gz", overwrite = TRUE)
+}
+
+stopifnot(file.exists("ecoli_cds.fa"), file.exists("bifido_cds.fa"))
+```
+
+```{r}
+cds_ecoli <- read.fasta("ecoli_cds.fa")
+cds_bifido <- read.fasta("bifido_cds.fa")
+```
+
+```{r}
+num_ecoli_cds <- length(cds_ecoli)
+num_bifido_cds <- length(cds_bifido)
+
+cds_count_table <- data.frame(
+  Organism = c("E. coli MG1655", "Bifidobacteriaceae WP012"),
+  CDS_Count = c(num_ecoli_cds, num_bifido_cds)
+)
+cds_count_table
+```
+
+```{r}
+#2 Total coding DNA length
+len_ecoli <- as.numeric(summary(cds_ecoli)[, 1])
+len_bifido <- as.numeric(summary(cds_bifido)[, 1])
+
+coding_len_table <- data.frame(
+  Organism = c("E. coli MG1655", "Bifidobacteriaceae WP012"),
+  Total_Coding_DNA_bp = c(sum(len_ecoli), sum(len_bifido))
+)
+coding_len_table
+```
+
+```{r}
+#3 CDS Length Statistics + Boxplot
+boxplot(len_bifido, len_ecoli,
+        names = c("Bifidobacteriaceae", "E. coli"),
+        ylab = "CDS Length (bp)",
+        main = "Distribution of CDS Lengths")
+
+length_stats <- data.frame(
+  Organism = c("Bifidobacteriaceae WP012", "E. coli MG1655"),
+  Mean_CDS_Length = c(mean(len_bifido), mean(len_ecoli)),
+  Median_CDS_Length = c(median(len_bifido), median(len_ecoli))
+)
+length_stats
+```
+
+```{r}
+#4 Nucleotide & Amino Acid Composition
+barplot(table(unlist(cds_bifido)),
+        main = "Bifidobacteriaceae Nucleotide Frequency",
+        xlab = "Nucleotide", ylab = "Frequency")
+barplot(table(unlist(cds_ecoli)),
+        main = "E. coli Nucleotide Frequency",
+        xlab = "Nucleotide", ylab = "Frequency")
+```
+```{r}
+# Translate to proteins (bacterial code = 11)
+prot_bifido <- lapply(cds_bifido, function(x) translate(x, numcode = 11))
+prot_ecoli  <- lapply(cds_ecoli,  function(x) translate(x, numcode = 11))
+```
+
+```{r}
+# Remove stop codons
+prot_bifido <- lapply(prot_bifido, function(v) v[v != "*"])
+prot_ecoli  <- lapply(prot_ecoli,  function(v) v[v != "*"])
+```
+
+```{r}
+# Amino acid frequency plots
+barplot(table(unlist(prot_bifido)),
+        main = "Bifidobacteriaceae Amino Acid Frequency",
+        xlab = "Amino Acid", ylab = "Frequency")
+barplot(table(unlist(prot_ecoli)),
+        main = "E. coli Amino Acid Frequency",
+        xlab = "Amino Acid", ylab = "Frequency")
+```
+```{r}
+#5 Codon Usage & Bias (RSCU)
+codon_usage_bifido_counts <- uco(unlist(cds_bifido), index = "eff")
+codon_usage_ecoli_counts  <- uco(unlist(cds_ecoli),  index = "eff")
+
+rscu_bifido <- uco(unlist(cds_bifido), index = "rscu")
+rscu_ecoli  <- uco(unlist(cds_ecoli),  index = "rscu")
+
+barplot(sort(rscu_bifido, decreasing = TRUE)[1:20],
+        las = 2, main = "Bifidobacteriaceae — Top 20 Codons (RSCU)",
+        xlab = "Codon", ylab = "RSCU")
+barplot(sort(rscu_ecoli, decreasing = TRUE)[1:20],
+        las = 2, main = "E. coli — Top 20 Codons (RSCU)",
+        xlab = "Codon", ylab = "RSCU")
+```
+
+```{r}
+# Define standard amino acid alphabet
+AA <- strsplit("ACDEFGHIKLMNPQRSTVWY", "")[[1]]
+
+# Helper to count k-mers
+aa_kmer_freq <- function(aa_vec, k) {
+  seqinr::count(aa_vec, wordsize = k, alphabet = AA, freq = TRUE)
+}
+```
+
+
+```{r}
+#6 Analyze top/bottom 10 k-mers (k = 3–5)
+analyze_k <- function(k) {
+  freq_bifido <- aa_kmer_freq(prots_bifido, k)
+  freq_ecoli  <- aa_kmer_freq(prots_ecoli, k)
+  
+  if (length(freq_bifido) == 0) return(invisible(NULL))
+  
+  top10    <- sort(freq_bifido, decreasing = TRUE)[1:min(10, sum(freq_bifido > 0))]
+  bottom10 <- sort(freq_bifido, decreasing = FALSE)[1:min(10, length(freq_bifido))]
+  
+  comp_top <- rbind(Bifidobacteriaceae = freq_bifido[names(top10)],
+                    `E. coli` = freq_ecoli[names(top10)])
+  comp_bottom <- rbind(Bifidobacteriaceae = freq_bifido[names(bottom10)],
+                       `E. coli` = freq_ecoli[names(bottom10)])
+  
+  op <- par(no.readonly = TRUE)
+  par(mfrow = c(1,2), mar = c(9,4,3,1))
+  barplot(comp_top, beside = TRUE, las = 2, ylab = "Frequency",
+          main = paste0("k=", k, " — Top 10 in Bifidobacteriaceae"))
+  barplot(comp_bottom, beside = TRUE, las = 2, ylab = "Frequency",
+          main = paste0("k=", k, " — Bottom 10 in Bifidobacteriaceae"))
+  par(op)
+  
+  invisible(list(k = k, top = top10, bottom = bottom10,
+                 comp_top = comp_top, comp_bottom = comp_bottom))
+}
+# Run for k = 3, 4, 5
+res_k3 <- analyze_k(3)
+res_k4 <- analyze_k(4)
+res_k5 <- analyze_k(5)
+```
+
+
+```{r}
+sessionInfo()
+```
+
